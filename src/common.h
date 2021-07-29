@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <pthread.h>
 
 typedef enum 
 {
@@ -16,7 +17,6 @@ typedef enum
     CLIENT_ERR_ERRNO = 4,
     CLIENT_ERR_SINGLETON = 5,
     CLIENT_ERR_CONN_LOST = 6,
-    CLIENT_ERR_FORCE_QUIT = 7,
 } client_err_t;
 
 
