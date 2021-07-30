@@ -16,7 +16,6 @@ typedef enum
     CLIENT_ERR_INVALID_OPERATION = 3,
     CLIENT_ERR_ERRNO = 4,
     CLIENT_ERR_SINGLETON = 5,
-    CLIENT_ERR_CONN_LOST = 6,
 } client_err_t;
 
 

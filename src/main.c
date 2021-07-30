@@ -14,7 +14,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
-    ret = connect_to_server("127.0.0.1", 1234);
+    ret = connect_to_server("test", "127.0.0.1", 1234);
     if( ret )
     {
         printf("connect_to_server---------------\n");

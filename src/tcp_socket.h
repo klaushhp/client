@@ -17,7 +17,6 @@ typedef enum
     internal_cmd_connect = 0,
     internal_cmd_disconnect = 1,
     internal_cmd_write_trigger = 2,
-    internal_cmd_force_quit = 3,
 } client_internal_cmd;
 
 struct out_packet

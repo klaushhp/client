@@ -9,6 +9,8 @@
 
 #include "tcp_socket.h"
 
+static client_err_t tcp_loop_read(tcp_client* client);
+static client_err_t tcp_loop_write(tcp_client* client);
 
 client_err_t set_socket_nonblock(int* sock)
 {
@@ -108,7 +110,7 @@ client_err_t connect_server(tcp_client* client)
     if( ret )
     {
         printf("connect failed [%d]\n", ret);
-        printf("%s\n",strerror(errno));
+        printf("%s\n", strerror(errno));
         return CLIENT_ERR_ERRNO;
     }
     
@@ -120,6 +122,7 @@ static void disconnect_server(tcp_client* client)
     close(client->sockfd);
     client->sockfd = INVALID_SOCKET;
 
+    /*TODO: free data*/
     return ;
 }
 
@@ -155,19 +158,11 @@ static int tcp_client_loop(tcp_client* client)
     {
         if( client->sockfd != INVALID_SOCKET && FD_ISSET(client->sockfd, &readfds) ) {
             printf("sockfd can read-------\n");
-#if 0
-            char buf[128];
-            int ret;
-            ret = recv(client->sockfd, buf, sizeof(buf), 0);
-            if(ret == 0)
+            ret = tcp_loop_read(client);
+            if(ret || client->sockfd == INVALID_SOCKET)
             {
-                printf("lost connect------\n");
-                return CLIENT_ERR_CONN_LOST;
+                return ret;
             }
-
-            printf("receive: %s\n", buf);
-#endif
-            return CLIENT_ERR_SUCCESS;
         }
 
         if( client->sockpair_r != INVALID_SOCKET  && FD_ISSET(client->sockpair_r, &readfds) ) {
@@ -195,13 +190,11 @@ static int tcp_client_loop(tcp_client* client)
                 return CLIENT_ERR_SUCCESS;
 
             case internal_cmd_write_trigger:
-                
+                if(client->sockfd != INVALID_SOCKET) {
+                    FD_SET(client->sockfd, &writefds);
+                }    
                 break;
 
-            case internal_cmd_force_quit:
-                
-                break;
-            
             default:
                 break;
             }
@@ -209,16 +202,20 @@ static int tcp_client_loop(tcp_client* client)
 
         if( client->sockfd != INVALID_SOCKET && FD_ISSET(client->sockfd, &writefds) ) {           
             printf("sockfd can write------\n");
-
+            ret = tcp_loop_write(client);
+            if(ret || client->sockfd == INVALID_SOCKET)
+            {
+                return ret;
+            }
         }
 
     }
     else
     {
-        return CLIENT_ERR_ERRNO;
+        ret = CLIENT_ERR_ERRNO;
     }
 
-    return CLIENT_ERR_SUCCESS;
+    return ret;
 }
 
 
@@ -232,8 +229,8 @@ void* tcp_client_main_loop(void* obj)
     while( run ) {
         
         do {
+            pthread_testcancel();
             rc = tcp_client_loop(client);
-
         } while(run == 1 && rc == CLIENT_ERR_SUCCESS);
         
         switch (rc) 
@@ -243,8 +240,7 @@ void* tcp_client_main_loop(void* obj)
             printf("Error: [%d]\n", rc);
             return (void*)rc;
 
-        case CLIENT_ERR_ERRNO: 
-        case CLIENT_ERR_CONN_LOST:             
+        case CLIENT_ERR_ERRNO:            
             break;
         
         default:
@@ -253,6 +249,8 @@ void* tcp_client_main_loop(void* obj)
         }
 
         do {
+            pthread_testcancel();
+
             state = client_get_state(client);
             if(state == tcp_cs_disconnected) {
                 run = 0;
@@ -266,4 +264,16 @@ void* tcp_client_main_loop(void* obj)
         } while(run && rc != CLIENT_ERR_SUCCESS);
 
     }
+}
+
+static client_err_t tcp_loop_read(tcp_client* client)
+{
+
+    return CLIENT_ERR_SUCCESS;
+}
+
+static client_err_t tcp_loop_write(tcp_client* client)
+{
+
+    return CLIENT_ERR_SUCCESS;
 }
