@@ -2,6 +2,7 @@
 #define _TCP_SOCKET_H_
 
 #include "common.h"
+#include "tcp_packet.h"
 
 #define INVALID_SOCKET -1
 
@@ -19,13 +20,13 @@ typedef enum
     internal_cmd_write_trigger = 2,
 } client_internal_cmd;
 
-struct out_packet
+struct tcp_packet
 {
     void* payload;
     int payload_len;
-    struct out_packet* next;
+    struct tcp_packet* next;
 } ;
-typedef struct out_packet out_packet_t; 
+typedef struct tcp_packet tcp_packet_t;
 
 typedef struct
 {
@@ -37,8 +38,9 @@ typedef struct
     tcp_client_state state;
     bool login_status;
     pthread_t thread_id;
-    out_packet_t* msg;
+    tcp_packet_t* msg;
     pthread_mutex_t state_mutex;
+    pthread_mutex_t login_mutex;
     pthread_mutex_t packet_mutex;
 } tcp_client;
 

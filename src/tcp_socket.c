@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "tcp_socket.h"
+#include "tcp_packet.h"
 
 static client_err_t tcp_loop_read(tcp_client* client);
 static client_err_t tcp_loop_write(tcp_client* client);
