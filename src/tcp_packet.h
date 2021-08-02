@@ -2,9 +2,11 @@
 #define _OUT_PACKET_H_
 
 #include "common.h"
-#include "tcp_socket.h"
 
-
+client_err_t packet_alloc(tcp_packet_t* packet);
+client_err_t packet_queue(tcp_client* client, tcp_packet_t* packet);
+client_err_t packet_write(tcp_client* client);
+client_err_t packet_read(net_client* client);
 
 
 #endif
