@@ -59,35 +59,6 @@ client_err_t local_socketpair(int* pair_r, int* pair_w)
 	return CLIENT_ERR_SUCCESS;
 }
 
-int client_set_state(tcp_client* client, tcp_client_state state)
-{
-	pthread_mutex_lock(&client->state_mutex);
-
-	client->state = state;
-	
-	pthread_mutex_unlock(&client->state_mutex);
-
-	return CLIENT_ERR_SUCCESS;
-}
-
-tcp_client_state client_get_state(tcp_client* client)
-{
-	tcp_client_state state;
-
-	pthread_mutex_lock(&client->state_mutex);
-
-	state = client->state;
-
-	pthread_mutex_unlock(&client->state_mutex);
-
-	return state;
-}
-
-void send_internal_signal(int sock, client_internal_cmd cmd)
-{
-    send(sock, &cmd, 1, 0);
-}
-
 client_err_t try_connect(int* sock, const char* host, uint16_t port)
 {
     struct  sockaddr_in serv_addr;
@@ -134,10 +105,17 @@ client_err_t connect_server(tcp_client* client)
     }
 
     ret = try_connect(&client->sockfd, client->address, client->port);
-    if( ret > 0 )
+    if( ret > 0 ) {
         return ret;
+    }    
 
-    ret = connect_step_2(client);        
+    ret = connect_step_2(client);
+    if(ret == CLIENT_ERR_SUCCESS) 
+    {
+        client_set_state(client, tcp_cs_connected);
+    } else {
+        client_set_state(client, tcp_cs_connect_pending);
+    }       
 
     return ret;
 }

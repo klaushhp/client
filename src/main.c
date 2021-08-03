@@ -32,10 +32,9 @@ int main(int argc, char const *argv[])
 
     while(1)
     {
-        snprintf(buf, 20, "wo lai la haha %d", i);
+        snprintf(buf, 20, "Send test data %d", i);
 
         client_data_upload(client, buf, 20);
-        printf("send: %s\n", buf);
         i++;    
         sleep(1);
     }

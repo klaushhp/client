@@ -92,11 +92,9 @@ client_err_t connect_tcp_server(net_client* client, const char* ip, uint16_t por
             if(  ret == CLIENT_ERR_SUCCESS ) {
                 ret = launch_tcp_main_loop(client);
                 if( ret == CLIENT_ERR_SUCCESS ) {
-                   /* publish connect success */
-                   printf("publish event: connect success！\n");
-                }
-                else
-                {
+                    /* publish connect success */
+                    printf("publish event: connect success！\n");
+                } else {
                     close(clt->sockfd);
                 }
             }
@@ -109,6 +107,10 @@ client_err_t connect_tcp_server(net_client* client, const char* ip, uint16_t por
         printf("Invalid instance, can't connect\n");
     }
 
+    if( ret != CLIENT_ERR_SUCCESS ) {
+        client_set_state(clt, tcp_cs_new);
+    }
+
     return ret;
 }
 
@@ -116,13 +118,12 @@ client_err_t disconnect_tcp_server(net_client* client)
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
     tcp_client* clt = NULL;
-    client_internal_cmd cmd = internal_cmd_disconnect;
 
     if( check_client_validity(client) ) {
         clt = client->tcp_clt;
 
         if( clt->sockpair_w != INVALID_SOCKET ) {
-            send(clt->sockpair_w, &cmd, 1, 0);
+            send_internal_signal(clt->sockpair_w, internal_cmd_disconnect);
         }    
     }
     else
@@ -154,31 +155,35 @@ client_err_t tcp_client_data_upload(net_client* client, const void* payload, int
     client_err_t ret = CLIENT_ERR_SUCCESS;
     tcp_client* clt = NULL;
     tcp_packet_t* packet = NULL;
+    tcp_client_state state;
 
     if( check_client_validity(client) ) {
         clt = client->tcp_clt;
-        packet = calloc(1, sizeof(tcp_packet_t));
-        if( !packet ) {
-            return CLIENT_ERR_NOMEN;
-        }
 
-        packet->payload_len = len;
+        state = client_get_state(clt); 
+        if( state == tcp_cs_connected || state == tcp_cs_connect_pending ) {
+            packet = calloc(1, sizeof(tcp_packet_t));
+            if( !packet ) {
+                return CLIENT_ERR_NOMEN;
+            }
 
-        ret = packet_alloc(packet);
-        if( ret ) {
-            free(packet);
-            return ret;
-        }
+            packet->payload_len = len;
+            ret = packet_alloc(packet);
+            if( ret ) {
+                free(packet);
+                return ret;
+            }
 
-        if(packet->payload_len)
-        {
-            memcpy(packet->payload, payload, packet->payload_len);
+            if( packet->payload_len ) {
+                memcpy(packet->payload, payload, packet->payload_len);
+            }
+        } else {
+            printf("Invalid connect status, can't upload data\n");
+            return CLIENT_ERR_INVALID_OPERATION;
         }
-    }
-    else
-    {
-        ret = CLIENT_ERR_INVALID_PARAM;
-        printf("Invalid instance, can't connect\n");   
+    } else {
+        printf("Invalid instance, can't upload data\n");
+        return CLIENT_ERR_INVALID_PARAM;   
     }
     
     return packet_queue(clt, packet);

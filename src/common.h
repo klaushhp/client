@@ -62,6 +62,10 @@ typedef enum
     CLIENT_ERR_CONN_LOST = 6,
 } client_err_t;
 
+void send_internal_signal(int sock, client_internal_cmd cmd);
+int client_set_state(tcp_client* client, tcp_client_state state);
+tcp_client_state client_get_state(tcp_client* client);
+
 #elif defined(USE_MQTT)
 
 

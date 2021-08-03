@@ -29,8 +29,6 @@ client_err_t packet_alloc(tcp_packet_t* packet)
 
 client_err_t packet_queue(tcp_client* client, tcp_packet_t* packet)
 {
-    client_internal_cmd cmd = internal_cmd_write_trigger;
-
     if( client == NULL || packet == NULL ) {
         return CLIENT_ERR_INVALID_PARAM;
     } 
@@ -46,7 +44,7 @@ client_err_t packet_queue(tcp_client* client, tcp_packet_t* packet)
     pthread_mutex_unlock(&client->packet_mutex);
 
     if(client->sockpair_w != INVALID_SOCKET) {
-        send(client->sockpair_w, &cmd, 1, 0);
+        send_internal_signal(client->sockpair_w, internal_cmd_write_trigger);
     }
  
     return CLIENT_ERR_SUCCESS;
@@ -72,7 +70,7 @@ client_err_t packet_write(tcp_client* client)
 
         write_len = send(client->sockfd, packet->payload, packet->payload_len, 0);
         if(write_len > 0) {
-            printf("successfully send: [%d] bytes\n", write_len);
+            printf("successfully send [%d] bytes: %s\n", write_len, (char*)packet->payload);
         } else {
             printf("ret:%d fail to send\n", write_len);
             return CLIENT_ERR_ERRNO;
@@ -105,6 +103,7 @@ client_err_t packet_read(net_client* client)
     rc = recv(client->tcp_clt->sockfd, buf, sizeof(buf), 0);
     if( rc == 0)
     {
+        printf("warnning: client lost connection!\n");
         return CLIENT_ERR_CONN_LOST;
     } else if( rc == -1 )
     {
