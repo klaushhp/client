@@ -9,10 +9,16 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <errno.h>
-
-#ifdef USE_TCP
+#include <utlist.h>
 
 #define INVALID_SOCKET -1
+#define INVALID_HANDLE -1
+
+typedef enum
+{
+    PROTOCAL_TCP = 0,
+    PROTOCAL_MQTT = 1,
+} client_protocal_type;
 
 typedef enum
 {
@@ -32,7 +38,6 @@ typedef struct tcp_packet tcp_packet_t;
 
 typedef struct
 {
-    char client_name[16];
     int sockfd;
     int sockpair_r, sockpair_w;
     char address[16];
@@ -66,24 +71,22 @@ void send_internal_signal(int sock, client_internal_cmd cmd);
 int client_set_state(tcp_client* client, tcp_client_state state);
 tcp_client_state client_get_state(tcp_client* client);
 
-#elif defined(USE_MQTT)
+typedef int client_t;
 
-
-
-
-#endif
-
-typedef struct
+struct remote_client
 {
-#ifdef USE_TCP
-tcp_client* tcp_clt;
-#elif defined(USE_MQTT)
+    client_t handle;
+    client_protocal_type type; 
+    char address[16];
+    uint16_t port;  
+    //bool login_status;
+    //pthread_mutex_t login_mutex;
+    void* clt;
+    struct remote_client* prev;
+    struct remote_client* next;
+};
+typedef struct remote_client remote_client_t;
 
-#endif
-bool login_status;
-pthread_mutex_t login_mutex;
-
-} net_client;
 
 
 #endif 

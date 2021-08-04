@@ -5,7 +5,6 @@
 
 int main(int argc, char const *argv[])
 {
-    net_client* client;
     client_err_t ret;
     char buf[128] = {0};
     int i =0;
@@ -13,6 +12,7 @@ int main(int argc, char const *argv[])
 
     signal(SIGPIPE,SIG_IGN);
 
+#if 0
     printf("---------------start test----------------------\n");
 
     client = create_client("test");
@@ -40,7 +40,7 @@ int main(int argc, char const *argv[])
     }
 
     disconnect_from_server(client);
-
+#endif
     while(1);
     
     return 0;
