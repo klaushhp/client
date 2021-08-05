@@ -10,21 +10,25 @@ client_err_t start_tcp_main_loop(tcp_client* client)
     {
         ret = CLIENT_ERR_ERRNO;
     } 
-        
+    printf("thread [%ld] created\n", (long unsigned int)client->thread_id);
+
     return ret;
 }
 
 client_err_t stop_tcp_main_loop(tcp_client* client)
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
+    void* rc;
 
     if( client != NULL )
     {
         if( client->sockpair_w != INVALID_SOCKET ) {
             send_internal_signal(client->sockpair_w, internal_cmd_break_block);
         }
+        printf("cancel the thread [%ld]\n", (long unsigned int)client->thread_id);
+        
         pthread_cancel(client->thread_id);
-        pthread_join(client->thread_id, NULL);
+        pthread_join(client->thread_id, &rc);
         client->thread_id = INVALID_THREAD;
     }
 
@@ -63,17 +67,24 @@ tcp_client* create_tcp_client()
 
 void destroy_tcp_client(tcp_client* client)
 {
-    /*interrupt sleep*/
-    /*TODO: do disconnect*/ 
-    /*TODO: cancel loop thread*/
-    /*TODO: release resource*/
-    /*TDOO: close socket*/
-
     if( client != NULL ) {
+        if( client->sockfd != INVALID_SOCKET ) {
+            net_socket_close(client);
+        }
 
+        if( client->sockpair_r != INVALID_SOCKET ) {
+            close(client->sockpair_r);
+        }
 
+        if( client->sockpair_w != INVALID_SOCKET ) {
+            close(client->sockpair_w);
+        }
 
-        net_socket_close(client);
+        packet_cleanup_all(client);
+
+        free(client->host);
+
+        free(client);
     }
 }
 

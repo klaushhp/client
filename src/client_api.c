@@ -4,36 +4,6 @@
 static remote_client_t* client_list = NULL;
 static uint32_t fd;
 
-#if 0
-static remote_client_t* get_client_by_name(const char* client_name)
-{
-    remote_client_t* client = NULL;
-
-    DL_FOREACH(client_list, client) {
-        if( strncmp(client->client_name, client_name, strlen(client->client_name)) == 0 )
-        {
-           break; 
-        }
-    }
-
-    return client;
-}
-
-static remote_client_t* get_client_by_ip_port(const char* ip, uint16_t port)
-{
-    remote_client_t* client = NULL;
-
-    DL_FOREACH(client_list, client) {
-        if( strncmp(client->address, ip, strlen(client->address)) == 0 && 
-        client->port == port ) {
-            break;
-        }
-    }
-
-    return client;
-}
-#endif
-
 static remote_client_t* get_client_handle(client_t handle)
 {
     remote_client_t* client = NULL;
@@ -199,6 +169,7 @@ static void destroy_remote_client(remote_client_t* client)
     {
     case PROTOCAL_TCP:
         destroy_tcp_client(client->clt);
+        client->clt = NULL;
         break;
 
     case PROTOCAL_MQTT:

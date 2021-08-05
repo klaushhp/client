@@ -13,6 +13,25 @@ void packet_free(tcp_packet_t* packet)
     free(packet);
 }
 
+void packet_cleanup_all(tcp_client* client)
+{
+    tcp_packet_t* packet;
+
+    pthread_mutex_lock(&client->packet_mutex);
+
+    while( client->out_packet ) {
+        packet = client->out_packet;
+        client->out_packet = client->out_packet->next;
+        packet_cleanup(packet);
+        packet_free(packet);
+    }
+
+    client->out_packet = NULL;
+    client->out_packet_last = NULL;
+
+    pthread_mutex_unlock(&client->packet_mutex);
+}
+
 client_err_t packet_alloc(tcp_packet_t* packet)
 {
     if( packet == NULL ) {

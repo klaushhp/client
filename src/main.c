@@ -25,7 +25,7 @@ int main(int argc, char const *argv[])
 \
     printf("finish connect_to_server---------------ret\n");
 
-    while(1)
+    while(i < 10)
     {
         snprintf(buf, 20, "Send test data %d", i);
 

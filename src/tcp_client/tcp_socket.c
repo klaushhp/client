@@ -148,13 +148,18 @@ client_err_t connect_server(tcp_client* client)
     return ret;
 }
 
-
 void net_socket_close(tcp_client* client)
 {
-    close(client->sockfd);
-    client->sockfd = INVALID_SOCKET;
 
-    /*TODO: free data*/
+#ifdef ENABLE_TLS
+
+
+#endif
+    if( client->sockfd != INVALID_SOCKET ) {
+        close(client->sockfd);
+        client->sockfd = INVALID_SOCKET;
+    }    
+
     return ;
 }
 
@@ -220,6 +225,7 @@ static int tcp_client_loop(tcp_client* client)
                     printf("internal_cmd_disconnect\n");
                     net_socket_close(client);
                     client_set_state(client, tcp_cs_disconnected);
+                    packet_cleanup_all(client);
                     /*TODO: publish tcp disconnect success*/
                 
                     return CLIENT_ERR_SUCCESS;
@@ -272,12 +278,13 @@ void* tcp_client_main_loop(void* obj)
         {
         case CLIENT_ERR_NOMEN:
         case CLIENT_ERR_INVALID_PARAM:
-            printf("Fatal err!!: [%d]--------------------------------\n", rc);
+            printf("Fatal err!!: [%d], thread exit!!! \n", rc);
             return (void*)(-1);
 
         case CLIENT_ERR_ERRNO:
         case CLIENT_ERR_NO_CONN:
-        case CLIENT_ERR_CONN_LOST:           
+        case CLIENT_ERR_CONN_LOST:
+            printf("Warning: [%d]\n", rc);           
             break;
         
         default:
@@ -290,6 +297,7 @@ void* tcp_client_main_loop(void* obj)
 
             state = client_get_state(client);
             if(state == tcp_cs_disconnected) {
+                printf("Info status disconnected, thread exit\n");
                 run = 0;
             } else {
                 printf("do reconnect\n");
@@ -301,6 +309,8 @@ void* tcp_client_main_loop(void* obj)
         } while(run && rc != CLIENT_ERR_SUCCESS);
 
     }
+
+    return (void*)0;
 }
 
 static client_err_t tcp_loop_read(tcp_client* client)
