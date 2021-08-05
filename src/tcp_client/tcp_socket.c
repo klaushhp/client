@@ -5,13 +5,14 @@
 #include <fcntl.h>
 #include <sys/select.h> 
 #include <sys/errno.h>
+#include <netdb.h>
 #include <unistd.h>
 
 #include "tcp_socket.h"
 #include "tcp_packet.h"
 
-static client_err_t tcp_loop_read(net_client* client);
-static client_err_t tcp_loop_write(net_client* client);
+static client_err_t tcp_loop_read(tcp_client* client);
+static client_err_t tcp_loop_write(tcp_client* client);
 
 client_err_t set_socket_nonblock(int* sock)
 {
@@ -61,29 +62,56 @@ client_err_t local_socketpair(int* pair_r, int* pair_w)
 
 client_err_t try_connect(int* sock, const char* host, uint16_t port)
 {
-    struct  sockaddr_in serv_addr;
+    struct addrinfo hints;
+    struct addrinfo *ainfo, *rp;
+    struct sockaddr_in serv_addr;
+    int s;
+    int ret;
+    
+    *sock = INVALID_SOCKET;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
 
-    *sock = socket(AF_INET, SOCK_STREAM, 0);
-    if( *sock == INVALID_SOCKET )
-    {
+    s = getaddrinfo(host, NULL, &hints, &ainfo);
+    if(s) {
+        printf("Fatal: can't transfer host info\n");
         return CLIENT_ERR_ERRNO;
     }
     
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = inet_addr(host);
-    serv_addr.sin_port = htons(port);
+    for(rp = ainfo; rp != NULL; rp = rp->ai_next) {
+        *sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        printf("Get sockfd [%d]\n", *sock);
+        if(*sock == INVALID_SOCKET) {
+            continue;
+        }
 
-    int ret = connect(*sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
-    if( ret )
-    {
-        printf("connect failed [%d] %s:%d\n", ret, host, port);
-        printf("%s\n", strerror(errno));
+        if(rp->ai_family == AF_INET){
+			((struct sockaddr_in *)rp->ai_addr)->sin_port = htons(port);
+		}else if(rp->ai_family == AF_INET6){
+			((struct sockaddr_in6 *)rp->ai_addr)->sin6_port = htons(port);
+		}else{
+			close(*sock);
+			*sock = INVALID_SOCKET;
+			continue;
+		}
+
+        ret = connect(*sock, rp->ai_addr, rp->ai_addrlen);
+        if( ret == 0 )
+        {
+            break;
+        }
+
         close(*sock);
-        return CLIENT_ERR_ERRNO;
+        *sock = INVALID_SOCKET;
     }
     
-    return CLIENT_ERR_SUCCESS;
+    freeaddrinfo(ainfo);
+    if( !rp ) {
+        return CLIENT_ERR_ERRNO;
+    }
+
+    return ret;
 }
 
 client_err_t connect_step_2(tcp_client* client)
@@ -101,10 +129,10 @@ client_err_t connect_server(tcp_client* client)
     client_err_t ret = CLIENT_ERR_SUCCESS;
 
     if( client->sockfd != INVALID_SOCKET ) {
-        close(client->sockfd);
+        net_socket_close(client);
     }
 
-    ret = try_connect(&client->sockfd, client->address, client->port);
+    ret = try_connect(&client->sockfd, client->host, client->port);
     if( ret > 0 ) {
         return ret;
     }    
@@ -121,7 +149,7 @@ client_err_t connect_server(tcp_client* client)
 }
 
 
-static void disconnect_server(tcp_client* client)
+void net_socket_close(tcp_client* client)
 {
     close(client->sockfd);
     client->sockfd = INVALID_SOCKET;
@@ -130,73 +158,75 @@ static void disconnect_server(tcp_client* client)
     return ;
 }
 
-static int tcp_client_loop(net_client* client)
+static int tcp_client_loop(tcp_client* client)
 {
     fd_set readfds, writefds;
     int fdcount;
     int maxfd = 0;
     uint8_t pairbuf;
-    tcp_client* clt = NULL;
     client_err_t ret = CLIENT_ERR_SUCCESS;
 
-    if( !client || !client->tcp_clt ) {
+    if( !client ) {
         return CLIENT_ERR_INVALID_PARAM;
     }
-    clt = client->tcp_clt;
 
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
 
-    if( clt->sockfd != INVALID_SOCKET ) {
-        maxfd = clt->sockfd;
-        FD_SET(clt->sockfd, &readfds);
+    if( client->sockfd != INVALID_SOCKET ) {
+        maxfd = client->sockfd;
+        FD_SET(client->sockfd, &readfds);
 
-        if( clt->out_packet )
+        if( client->out_packet )
         {
-            FD_SET(clt->sockfd, &writefds);
+            FD_SET(client->sockfd, &writefds);
         }    
     } else {
         return CLIENT_ERR_NO_CONN;
     }
 
-    if( clt->sockpair_r != INVALID_SOCKET ) {
-        FD_SET(clt->sockpair_r, &readfds);
+    if( client->sockpair_r != INVALID_SOCKET ) {
+        FD_SET(client->sockpair_r, &readfds);
 
-        if( clt->sockpair_r > maxfd ) {
-            maxfd = clt->sockpair_r;
+        if( client->sockpair_r > maxfd ) {
+            maxfd = client->sockpair_r;
         }
     }
     
     fdcount = select(maxfd+1, &readfds, &writefds, NULL, NULL);
     if( fdcount != -1 )
     {
-        if( clt->sockfd != INVALID_SOCKET ) { 
-            if( FD_ISSET(clt->sockfd, &readfds) ) {
+        if( client->sockfd != INVALID_SOCKET ) { 
+            if( FD_ISSET(client->sockfd, &readfds) ) {
                 printf("sockfd can read-------\n");
                 ret = tcp_loop_read(client);
 
-                if(ret || clt->sockfd == INVALID_SOCKET)
+                if(ret || client->sockfd == INVALID_SOCKET)
                 {
                     return ret;
                 }
             }
 
-            if( clt->sockpair_r != INVALID_SOCKET  && FD_ISSET(clt->sockpair_r, &readfds) ) {
-                recv(clt->sockpair_r, &pairbuf, 1, 0);
+            if( client->sockpair_r != INVALID_SOCKET  && FD_ISSET(client->sockpair_r, &readfds) ) {
+                recv(client->sockpair_r, &pairbuf, 1, 0);
                 
                 switch ((client_internal_cmd)pairbuf) 
                 {
+                case internal_cmd_break_block:
+                    /*Do nothing, just break select*/
+                    break;
+
                 case internal_cmd_disconnect:
                     printf("internal_cmd_disconnect\n");
-                    disconnect_server(clt);
-                    client_set_state(clt, tcp_cs_disconnected);
+                    net_socket_close(client);
+                    client_set_state(client, tcp_cs_disconnected);
                     /*TODO: publish tcp disconnect success*/
                 
                     return CLIENT_ERR_SUCCESS;
 
                 case internal_cmd_write_trigger:
-                    if( clt->sockfd != INVALID_SOCKET ) {
-                        FD_SET(clt->sockfd, &writefds);
+                    if( client->sockfd != INVALID_SOCKET ) {
+                        FD_SET(client->sockfd, &writefds);
                     }    
                     break;
 
@@ -205,10 +235,10 @@ static int tcp_client_loop(net_client* client)
                 }
             }
 
-            if( clt->sockfd != INVALID_SOCKET && FD_ISSET(clt->sockfd, &writefds) ) {           
+            if( client->sockfd != INVALID_SOCKET && FD_ISSET(client->sockfd, &writefds) ) {           
                 printf("sockfd can write------\n");
                 ret = tcp_loop_write(client);
-                if( ret || clt->sockfd == INVALID_SOCKET )
+                if( ret || client->sockfd == INVALID_SOCKET )
                 {
                     return ret;
                 }
@@ -229,7 +259,7 @@ void* tcp_client_main_loop(void* obj)
     int rc;
     int run = 1;
     int state;
-    net_client* client = (net_client*)obj;
+    tcp_client* client = (tcp_client*)obj;
 
     while( run ) {
         
@@ -243,7 +273,7 @@ void* tcp_client_main_loop(void* obj)
         case CLIENT_ERR_NOMEN:
         case CLIENT_ERR_INVALID_PARAM:
             printf("Fatal err!!: [%d]--------------------------------\n", rc);
-            return (void*)rc;
+            return (void*)(-1);
 
         case CLIENT_ERR_ERRNO:
         case CLIENT_ERR_NO_CONN:
@@ -258,13 +288,13 @@ void* tcp_client_main_loop(void* obj)
         do {
             pthread_testcancel();
 
-            state = client_get_state(client->tcp_clt);
+            state = client_get_state(client);
             if(state == tcp_cs_disconnected) {
                 run = 0;
             } else {
                 printf("do reconnect\n");
                 sleep(1);
-                rc = connect_server(client->tcp_clt);
+                rc = connect_server(client);
             }
 
             /*TODO: use select to delay, can interuppt the delay*/
@@ -273,12 +303,12 @@ void* tcp_client_main_loop(void* obj)
     }
 }
 
-static client_err_t tcp_loop_read(net_client* client)
+static client_err_t tcp_loop_read(tcp_client* client)
 {
     return packet_read(client);
 }
 
-static client_err_t tcp_loop_write(net_client* client)
+static client_err_t tcp_loop_write(tcp_client* client)
 {
-    return packet_write(client->tcp_clt);
+    return packet_write(client);
 }

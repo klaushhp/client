@@ -90,17 +90,17 @@ client_err_t packet_write(tcp_client* client)
     return CLIENT_ERR_SUCCESS;
 }
 
-client_err_t packet_read(net_client* client)
+client_err_t packet_read(tcp_client* client)
 {
     char buf[1024] = {0};
     int rc;
 
-    if( !client || !client->tcp_clt )
+    if( !client )
     {
         return CLIENT_ERR_INVALID_PARAM;
     }
 
-    rc = recv(client->tcp_clt->sockfd, buf, sizeof(buf), 0);
+    rc = recv(client->sockfd, buf, sizeof(buf), 0);
     if( rc == 0)
     {
         printf("warnning: client lost connection!\n");

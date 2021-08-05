@@ -6,40 +6,35 @@
 int main(int argc, char const *argv[])
 {
     client_err_t ret;
+    client_t fd;
     char buf[128] = {0};
     int i =0;
     int j=20;
 
     signal(SIGPIPE,SIG_IGN);
 
-#if 0
+#if 1
     printf("---------------start test----------------------\n");
 
-    client = create_client("test");
-    if( !client)
+    fd = connect_to_server(PROTOCAL_TCP, "127.0.0.1", 1234);
+    if( fd == INVALID_HANDLE )
     {
         printf("create_client failed---------------\n");
         return -1;
     }
-
-    ret = connect_to_server(client, "127.0.0.1", 1234);
-    if( ret )
-    {
-        printf("connect_to_server---------------\n");
-        return -1;
-    }
-    printf("finish connect_to_server---------------ret = [%d]\n", ret);
+\
+    printf("finish connect_to_server---------------ret\n");
 
     while(1)
     {
         snprintf(buf, 20, "Send test data %d", i);
 
-        client_data_upload(client, buf, 20);
+        client_data_upload(fd, buf, 20);
         i++;    
         sleep(1);
     }
 
-    disconnect_from_server(client);
+    disconnect_from_server(fd);
 #endif
     while(1);
     

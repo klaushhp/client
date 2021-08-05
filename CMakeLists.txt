@@ -3,7 +3,7 @@ project(client)
 cmake_minimum_required(VERSION 3.20)
 
 aux_source_directory(./src SOURCE)
-#aux_source_directory(./src/tcp_client SOURCE)
+aux_source_directory(./src/tcp_client SOURCE)
 
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/src/tcp_client)

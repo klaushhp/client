@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-client_t connect_to_server(client_protocal_type type, const char* ip, uint16_t port);
+client_t connect_to_server(client_protocal_type type, const char* host, uint16_t port);
 client_err_t disconnect_from_server(client_t handle);
 client_err_t login_to_server(client_t handle);
 client_err_t logout_from_server(client_t handle);

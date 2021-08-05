@@ -1,5 +1,5 @@
 #include "client_api.h"
-//#include "tcp_client.h"
+#include "tcp_client.h"
 
 static remote_client_t* client_list = NULL;
 static uint32_t fd;
@@ -18,7 +18,6 @@ static remote_client_t* get_client_by_name(const char* client_name)
 
     return client;
 }
-#endif
 
 static remote_client_t* get_client_by_ip_port(const char* ip, uint16_t port)
 {
@@ -33,6 +32,7 @@ static remote_client_t* get_client_by_ip_port(const char* ip, uint16_t port)
 
     return client;
 }
+#endif
 
 static remote_client_t* get_client_handle(client_t handle)
 {
@@ -47,16 +47,52 @@ static remote_client_t* get_client_handle(client_t handle)
     return client;
 }
 
-static client_err_t launch_main_loop(remote_client_t* client)
+static client_err_t start_main_loop(remote_client_t* client)
 {
+    client_err_t ret = CLIENT_ERR_SUCCESS;
 
+    switch (client->type)
+    {
+    case PROTOCAL_TCP:
+        ret = start_tcp_main_loop(client->clt);
+        break;
 
+    case PROTOCAL_MQTT:
+        printf("Error: MQTT protocal is not supproted\n");
+        ret = CLIENT_ERR_INVALID_PARAM;
+        break;
+
+    default:
+        printf("Error: unkonwn protocal\n");
+        ret = CLIENT_ERR_INVALID_PARAM;
+        break;
+    }
+
+    return ret;
 }
 
 static client_err_t stop_main_loop(remote_client_t* client)
 {
+    client_err_t ret = CLIENT_ERR_SUCCESS;
 
+    switch (client->type)
+    {
+    case PROTOCAL_TCP:
+        ret = stop_tcp_main_loop(client->clt);
+        break;
 
+    case PROTOCAL_MQTT:
+        printf("Error: MQTT protocal is not supproted\n");
+        ret = CLIENT_ERR_INVALID_PARAM;
+        break;
+
+    default:
+        printf("Error: unkonwn protocal\n");
+        ret = CLIENT_ERR_INVALID_PARAM;
+        break;
+    }
+
+    return ret;
 }
 
 static client_t handle_alloc()
@@ -70,14 +106,14 @@ static void handle_free()
 
 }
 
-static client_err_t connect_to_remote_server(remote_client_t* client)
+static client_err_t connect_to_remote_server(remote_client_t* client, const char* host, uint16_t port)
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
 
     switch (client->type)
     {
     case PROTOCAL_TCP:
-        //ret = connect_tcp_server(client);
+        ret = connect_tcp_server(client->clt, host, port);
         break;
 
     case PROTOCAL_MQTT:
@@ -101,7 +137,7 @@ static client_err_t disconnect_remote_server(remote_client_t* client)
     switch (client->type)
     {
     case PROTOCAL_TCP:
-        //ret = disconnect_tcp_server(client);
+        ret = disconnect_tcp_server(client->clt);
         break;
 
     case PROTOCAL_MQTT:
@@ -119,7 +155,7 @@ static client_err_t disconnect_remote_server(remote_client_t* client)
 }
 
 
-static remote_client_t* create_remote_client(client_protocal_type type, const char* ip, uint16_t port)
+static remote_client_t* create_remote_client(client_protocal_type type)
 {
     remote_client_t* client = NULL;
 
@@ -128,14 +164,12 @@ static remote_client_t* create_remote_client(client_protocal_type type, const ch
         client->handle = handle_alloc();
         if( client->handle != INVALID_HANDLE ) {
             client->type = type;
-            client->port = port;
-            strncpy(client->address, ip, strlen(client->address));
             //client->login_status = false;
             //pthread_mutex_init(&client->login_mutex, NULL);
 
             switch (type) {
             case PROTOCAL_TCP:
-                //client->clt = create_tcp_client();
+                client->clt = create_tcp_client();
                 if( client->clt == NULL ) {
                     handle_free(client->handle);
                     free(client);    
@@ -164,7 +198,7 @@ static void destroy_remote_client(remote_client_t* client)
     switch (client->type)
     {
     case PROTOCAL_TCP:
-        //destroy_tcp_client(client->clt);
+        destroy_tcp_client(client->clt);
         break;
 
     case PROTOCAL_MQTT:
@@ -180,37 +214,55 @@ static void destroy_remote_client(remote_client_t* client)
     free(client);
 }
 
+static client_err_t data_upload(remote_client_t* client, const void* payload, int len)
+{
+    client_err_t ret = CLIENT_ERR_SUCCESS;
 
-client_t connect_to_server(client_protocal_type type, const char* ip, uint16_t port)
+    switch (client->type)
+    {
+    case PROTOCAL_TCP:
+        ret = tcp_client_data_upload(client->clt, payload, len);
+        break;
+
+    case PROTOCAL_MQTT:
+        printf("Error: MQTT protocal is not supproted\n");
+        ret = CLIENT_ERR_INVALID_PARAM;
+        break;
+
+    default:
+        printf("Error: unkonwn protocal\n");
+        ret = CLIENT_ERR_INVALID_PARAM;
+        break;
+    }
+
+    return ret;
+}
+
+client_t connect_to_server(client_protocal_type type, const char* host, uint16_t port)
 {
     client_t ret = -1;
     remote_client_t* client = NULL;
 
-    client = get_client_by_ip_port(ip, port);
-    if( client == NULL ) {
-        client = create_remote_client(type, ip, port);
-        if( client != NULL ) {
-            ret = connect_to_remote_server(client);
+    client = create_remote_client(type);
+    if( client != NULL ) {
+        ret = connect_to_remote_server(client, host, port);
+        if( ret == CLIENT_ERR_SUCCESS ) {
+            ret = start_main_loop(client);
             if( ret == CLIENT_ERR_SUCCESS ) {
-                ret = launch_main_loop(client);
-                if( ret == CLIENT_ERR_SUCCESS ) {
-                    DL_APPEND(client_list, client);
-                    ret = client->handle;
-                } else {
-                    destroy_remote_client(client);
-                    ret = INVALID_HANDLE;
-                }
+                DL_APPEND(client_list, client);
+                ret = client->handle;
             } else {
+                disconnect_remote_server(client);
                 destroy_remote_client(client);
                 ret = INVALID_HANDLE;
             }
         } else {
-            printf("Error: Fail to create client instance\n");
+            destroy_remote_client(client);
             ret = INVALID_HANDLE;
         }
     } else {
-        printf("Found existed instance %d\n", client->handle);
-        ret = client->handle;
+        printf("Error: Fail to create client instance\n");
+        ret = INVALID_HANDLE;
     }
 
     return ret;
@@ -225,8 +277,8 @@ client_err_t disconnect_from_server(client_t handle)
     if( client != NULL ) {
         disconnect_remote_server(client);
         stop_main_loop(client);
+        DL_DELETE(client_list, client);
         destroy_remote_client(client);
-        /*TODO: remove form list*/
     } else {
         ret = CLIENT_ERR_INVALID_PARAM;
     }
@@ -251,7 +303,17 @@ client_err_t get_login_status(client_t handle, bool* login_status)
 
 client_err_t client_data_upload(client_t handle, const void* payload, int len)
 {
+    client_err_t ret = CLIENT_ERR_SUCCESS;
+    remote_client_t* client = NULL;
 
+    client = get_client_handle(handle);
+    if( client != NULL ) {
+        ret = data_upload(client, payload, len);
+    } else {
+        ret = CLIENT_ERR_INVALID_PARAM;
+    }
+
+    return ret; 
 
 }
 

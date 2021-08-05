@@ -13,6 +13,7 @@
 
 #define INVALID_SOCKET -1
 #define INVALID_HANDLE -1
+#define INVALID_THREAD -1
 
 typedef enum
 {
@@ -40,7 +41,7 @@ typedef struct
 {
     int sockfd;
     int sockpair_r, sockpair_w;
-    char address[16];
+    char* host;
     uint16_t port;
     tcp_client_state state;
     pthread_t thread_id;
@@ -52,7 +53,8 @@ typedef struct
 
 typedef enum
 {
-    internal_cmd_disconnect = 0,
+    internal_cmd_break_block = 0,
+    internal_cmd_disconnect = 1,
     internal_cmd_write_trigger = 2,
 } client_internal_cmd;
 
@@ -77,8 +79,6 @@ struct remote_client
 {
     client_t handle;
     client_protocal_type type; 
-    char address[16];
-    uint16_t port;  
     //bool login_status;
     //pthread_mutex_t login_mutex;
     void* clt;
