@@ -1,6 +1,9 @@
 #include "tcp_packet.h"
 #include <sys/socket.h>
 
+ssize_t net_write(tcp_client* client, void* buf, size_t count);
+ssize_t net_read(tcp_client* client, void* buf, size_t count);
+
 void packet_cleanup(tcp_packet_t* packet)
 {
     packet->payload_len = 0;
@@ -72,7 +75,7 @@ client_err_t packet_queue(tcp_client* client, tcp_packet_t* packet)
 client_err_t packet_write(tcp_client* client)
 {
     tcp_packet_t* packet = NULL;
-    int write_len;
+    ssize_t write_len;
     tcp_client_state state;
 
     if( client == NULL ) {
@@ -87,11 +90,11 @@ client_err_t packet_write(tcp_client* client)
     while(client->out_packet) {
         packet = client->out_packet;
 
-        write_len = send(client->sockfd, packet->payload, packet->payload_len, 0);
+        write_len = net_write(client, packet->payload, packet->payload_len);
         if(write_len > 0) {
-            printf("successfully send [%d] bytes: %s\n", write_len, (char*)packet->payload);
+            printf("successfully send [%ld] bytes: %s\n", write_len, (char*)packet->payload);
         } else {
-            printf("ret:%d fail to send\n", write_len);
+            printf("ret:[%ld] fail to send\n", write_len);
             return CLIENT_ERR_ERRNO;
         }
 
@@ -119,7 +122,7 @@ client_err_t packet_read(tcp_client* client)
         return CLIENT_ERR_INVALID_PARAM;
     }
 
-    rc = recv(client->sockfd, buf, sizeof(buf), 0);
+    rc = net_read(client, buf, sizeof(buf));
     if( rc == 0)
     {
         printf("warnning: client lost connection!\n");
@@ -131,4 +134,32 @@ client_err_t packet_read(tcp_client* client)
     }
 
     return CLIENT_ERR_SUCCESS;
+}
+
+
+static ssize_t net_write(tcp_client* client, void* buf, size_t count)
+{
+#ifdef ENABLE_TLS
+
+#endif
+
+    errno = 0;
+#ifdef ENABLE_TLS
+
+#endif
+    return send(client->sockfd, buf, count, 0);
+}
+
+static ssize_t net_read(tcp_client* client, void* buf, size_t count)
+{
+#ifdef ENABLE_TLS
+
+#endif 
+
+    errno = 0;
+#ifdef ENABLE_TLS
+
+#endif
+
+    return recv(client->sockfd, buf, count);
 }

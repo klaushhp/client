@@ -26,7 +26,7 @@ client_err_t stop_tcp_main_loop(tcp_client* client)
             send_internal_signal(client->sockpair_w, internal_cmd_break_block);
         }
         printf("cancel the thread [%ld]\n", (long unsigned int)client->thread_id);
-        
+
         pthread_cancel(client->thread_id);
         pthread_join(client->thread_id, &rc);
         client->thread_id = INVALID_THREAD;
@@ -130,7 +130,7 @@ client_err_t disconnect_tcp_server(tcp_client* client)
     else
     {
         ret = CLIENT_ERR_INVALID_PARAM;
-        printf("Invalid instance, can't connect\n");   
+        printf("Invalid instance, can't disconnect\n");   
     }
     
     return ret;
