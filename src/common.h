@@ -29,11 +29,38 @@ typedef enum
     tcp_cs_connect_pending = 3,
 } tcp_client_state;
 
+#define MSG_START_ID        (0x23)
+#define MSG_START_ID_LEN    (2)
+#define MSG_CMD_ID_LEN      (1)
+#define MSG_ACK_FLAG_LEN    (1)
+#define MSG_DATE_LEN        (3)
+#define MSG_TIME_LEN        (3)
+#define MSG_DATA_LEN        (2)
+#define MSG_CHECK_SUM_LEN   (1)
+#define MSG_BEFORE_DATA_LEN (2+1+1+3+3+2)
+
+struct tcp_packet_msg
+{
+    void* payload;
+    int payload_len;
+    uint8_t cmd_id;
+    uint8_t ack_flag;
+    uint8_t date[MSG_DATE_LEN];
+    uint8_t time[MSG_TIME_LEN];
+    uint8_t check_sum;
+    struct tcp_packet_msg* prev;
+    struct tcp_packet_msg* next;
+};
+typedef struct tcp_packet_msg tcp_packet_msg_t;
+
 struct tcp_packet
 {
     void* payload;
     int payload_len;
     struct tcp_packet* next;
+    int pos;
+    int to_process;
+    uint8_t head_buf[MSG_BEFORE_DATA_LEN]; 
 } ;
 typedef struct tcp_packet tcp_packet_t;
 
@@ -47,6 +74,8 @@ typedef struct
     pthread_t thread_id;
     tcp_packet_t* out_packet;
     tcp_packet_t* out_packet_last;
+    tcp_packet_t in_packet;
+    tcp_packet_msg_t* in_msg;
     pthread_mutex_t state_mutex;    
     pthread_mutex_t packet_mutex;
 } tcp_client;
@@ -67,6 +96,7 @@ typedef enum
     CLIENT_ERR_ERRNO = 4,
     CLIENT_ERR_NO_CONN = 5,
     CLIENT_ERR_CONN_LOST = 6,
+    CLIENT_ERR_INVALID_PROTOCAL =7,
 } client_err_t;
 
 void send_internal_signal(int sock, client_internal_cmd cmd);

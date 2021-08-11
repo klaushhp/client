@@ -99,6 +99,9 @@ client_err_t try_connect(int* sock, const char* host, uint16_t port)
         ret = connect(*sock, rp->ai_addr, rp->ai_addrlen);
         if( ret == 0 )
         {
+            if( set_socket_nonblock(sock) ) {
+                continue;
+            }
             break;
         }
 

@@ -49,6 +49,7 @@ tcp_client* create_tcp_client()
         client->thread_id = INVALID_THREAD;
         client->out_packet = NULL;
         client->out_packet_last = NULL;
+        packet_init(&client->in_packet);
 
         pthread_mutex_init(&client->state_mutex, NULL);
         pthread_mutex_init(&client->packet_mutex, NULL);

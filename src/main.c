@@ -13,7 +13,7 @@ int main(int argc, char const *argv[])
 
     signal(SIGPIPE,SIG_IGN);
 
-#if 1
+
     printf("---------------start test----------------------\n");
 
     fd = connect_to_server(PROTOCAL_TCP, "127.0.0.1", 1234);
@@ -22,9 +22,9 @@ int main(int argc, char const *argv[])
         printf("create_client failed---------------\n");
         return -1;
     }
-\
-    printf("finish connect_to_server---------------ret\n");
 
+    printf("finish connect_to_server---------------ret\n");
+#if 0
     while(i < 10)
     {
         snprintf(buf, 20, "Send test data %d", i);
