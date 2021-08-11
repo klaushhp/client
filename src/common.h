@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <errno.h>
 #include <utlist.h>
 
@@ -41,18 +42,22 @@ typedef enum
 
 struct tcp_packet_msg
 {
-    void* payload;
-    int payload_len;
     uint8_t cmd_id;
     uint8_t ack_flag;
     uint8_t date[MSG_DATE_LEN];
     uint8_t time[MSG_TIME_LEN];
+    void* payload;
+    int payload_len;
     uint8_t check_sum;
     struct tcp_packet_msg* prev;
     struct tcp_packet_msg* next;
 };
 typedef struct tcp_packet_msg tcp_packet_msg_t;
 
+
+/*tcp packet has two directions      */
+/*For the packet to send out, the payload means the whole message, payload_len is the whole message len */
+/*For the packet received, the payload is the real payload part,  payload_len is only the payload part len  */
 struct tcp_packet
 {
     void* payload;
@@ -71,13 +76,16 @@ typedef struct
     char* host;
     uint16_t port;
     tcp_client_state state;
-    pthread_t thread_id;
+    pthread_t client_thread_id;
+    pthread_t msg_thread_id;
     tcp_packet_t* out_packet;
     tcp_packet_t* out_packet_last;
     tcp_packet_t in_packet;
     tcp_packet_msg_t* in_msg;
     pthread_mutex_t state_mutex;    
-    pthread_mutex_t packet_mutex;
+    pthread_mutex_t out_packet_mutex;
+    pthread_mutex_t in_msg_mutex;
+    sem_t in_msg_sem;
 } tcp_client;
 
 typedef enum

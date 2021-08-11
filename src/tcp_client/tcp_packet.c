@@ -4,15 +4,18 @@
 static ssize_t net_write(tcp_client* client, void* buf, size_t count);
 static ssize_t net_read(tcp_client* client, void* buf, size_t count);
 
+
 void packet_init(tcp_packet_t* packet)
 {
-    packet->payload = NULL;
-    packet->payload_len = 0;;
-    packet->next = NULL;
-    packet->pos = 0;
-    packet->to_process = 0;  
+    if( packet != NULL ) {
+        packet->payload = NULL;
+        packet->payload_len = 0;;
+        packet->next = NULL;
+        packet->pos = 0;
+        packet->to_process = 0;  
 
-    memset(packet->head_buf, 0, sizeof(packet->head_buf));
+        memset(packet->head_buf, 0, sizeof(packet->head_buf));
+    }
 }
 
 void packet_cleanup(tcp_packet_t* packet)
@@ -31,7 +34,7 @@ void packet_cleanup_all(tcp_client* client)
 {
     tcp_packet_t* packet;
 
-    pthread_mutex_lock(&client->packet_mutex);
+    pthread_mutex_lock(&client->out_packet_mutex);
 
     while( client->out_packet ) {
         packet = client->out_packet;
@@ -43,7 +46,7 @@ void packet_cleanup_all(tcp_client* client)
     client->out_packet = NULL;
     client->out_packet_last = NULL;
 
-    pthread_mutex_unlock(&client->packet_mutex);
+    pthread_mutex_unlock(&client->out_packet_mutex);
 }
 
 client_err_t packet_alloc(tcp_packet_t* packet)
@@ -67,14 +70,14 @@ client_err_t packet_queue(tcp_client* client, tcp_packet_t* packet)
     } 
 
     packet->next = NULL;
-    pthread_mutex_lock(&client->packet_mutex);
+    pthread_mutex_lock(&client->out_packet_mutex);
     if(client->out_packet) {
         client->out_packet_last->next = packet;
     } else {
         client->out_packet= packet;
     }
     client->out_packet_last = packet;
-    pthread_mutex_unlock(&client->packet_mutex);
+    pthread_mutex_unlock(&client->out_packet_mutex);
 
     if(client->sockpair_w != INVALID_SOCKET) {
         send_internal_signal(client->sockpair_w, internal_cmd_write_trigger);
@@ -106,15 +109,25 @@ client_err_t packet_write(tcp_client* client)
             printf("successfully send [%ld] bytes: %s\n", write_len, (char*)packet->payload);
         } else {
             printf("ret:[%ld] fail to send\n", write_len);
-            return CLIENT_ERR_ERRNO;
+            if(errno == EAGAIN || errno == EWOULDBLOCK ) {
+				return CLIENT_ERR_SUCCESS;
+			} else {
+				switch(errno) {
+				case ECONNRESET:
+                    return CLIENT_ERR_CONN_LOST;
+            
+                default:
+                    return CLIENT_ERR_ERRNO;
+				}
+			}
         }
 
-        pthread_mutex_lock(&client->packet_mutex);
+        pthread_mutex_lock(&client->out_packet_mutex);
         client->out_packet = client->out_packet->next;
         if(!client->out_packet) {
             client->out_packet_last = NULL;
         }
-        pthread_mutex_unlock(&client->packet_mutex);
+        pthread_mutex_unlock(&client->out_packet_mutex);
 
         packet_cleanup(packet);
         packet_free(packet);
@@ -233,8 +246,6 @@ client_err_t packet_read(tcp_client* client)
     print_msg(client->in_packet.payload, client->in_packet.payload_len);
     print_msg(&check_sum, 1);
 
-
-
     if( bcc_check_sum(&client->in_packet, check_sum) ) {
         tcp_packet_msg_t* msg = calloc(1, sizeof(tcp_packet_msg_t));
         if( msg == NULL ) {
@@ -248,10 +259,15 @@ client_err_t packet_read(tcp_client* client)
         memcpy(&msg->ack_flag, client->in_packet.head_buf + MSG_START_ID_LEN + MSG_CMD_ID_LEN, sizeof(msg->ack_flag));
         memcpy(msg->date, client->in_packet.head_buf + MSG_START_ID_LEN + MSG_CMD_ID_LEN + MSG_ACK_FLAG_LEN, sizeof(msg->date));
         memcpy(msg->time, client->in_packet.head_buf + MSG_START_ID_LEN + MSG_CMD_ID_LEN + MSG_ACK_FLAG_LEN + MSG_DATE_LEN, sizeof(msg->time));
+    
+        pthread_mutex_lock(&client->in_msg_mutex);
+        DL_APPEND(client->in_msg, msg);
+        pthread_mutex_unlock(&client->in_msg_mutex);
+    
+        sem_post(&client->in_msg_sem);
 
-        //do append
         packet_init(&client->in_packet);
-
+        
         return CLIENT_ERR_SUCCESS;
     }
 
@@ -264,8 +280,7 @@ err:
         if(errno == EAGAIN || errno == EWOULDBLOCK) {
             return CLIENT_ERR_SUCCESS;
         } else {
-            switch (errno)
-            {
+            switch (errno) {
             case ECONNRESET:
                 return CLIENT_ERR_CONN_LOST;
             

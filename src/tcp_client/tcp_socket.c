@@ -300,10 +300,10 @@ void* tcp_client_main_loop(void* obj)
 
             state = client_get_state(client);
             if(state == tcp_cs_disconnected) {
-                printf("Info status disconnected, thread exit\n");
+                printf("Info: status disconnected, thread exit\n");
                 run = 0;
             } else {
-                printf("do reconnect\n");
+                printf("Do reconnect after 1s\n");
                 sleep(1);
                 rc = connect_server(client);
             }

@@ -41,28 +41,24 @@ static client_err_t start_main_loop(remote_client_t* client)
     return ret;
 }
 
-static client_err_t stop_main_loop(remote_client_t* client)
+static void stop_main_loop(remote_client_t* client)
 {
-    client_err_t ret = CLIENT_ERR_SUCCESS;
-
     switch (client->type)
     {
     case PROTOCAL_TCP:
-        ret = stop_tcp_main_loop(client->clt);
+        stop_tcp_main_loop(client->clt);
         break;
 
     case PROTOCAL_MQTT:
         printf("Error: MQTT protocal is not supproted\n");
-        ret = CLIENT_ERR_INVALID_PARAM;
         break;
 
     default:
         printf("Error: unkonwn protocal\n");
-        ret = CLIENT_ERR_INVALID_PARAM;
         break;
     }
 
-    return ret;
+    return ;
 }
 
 static client_t handle_alloc()
@@ -225,10 +221,12 @@ client_t connect_to_server(client_protocal_type type, const char* host, uint16_t
             } else {
                 disconnect_remote_server(client);
                 destroy_remote_client(client);
+                client = NULL;
                 ret = INVALID_HANDLE;
             }
         } else {
             destroy_remote_client(client);
+            client = NULL;
             ret = INVALID_HANDLE;
         }
     } else {
@@ -250,6 +248,7 @@ client_err_t disconnect_from_server(client_t handle)
         stop_main_loop(client);
         DL_DELETE(client_list, client);
         destroy_remote_client(client);
+        client = NULL;
     } else {
         ret = CLIENT_ERR_INVALID_PARAM;
     }

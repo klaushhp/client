@@ -33,9 +33,11 @@ int main(int argc, char const *argv[])
         i++;    
         sleep(1);
     }
-
-    disconnect_from_server(fd);
 #endif
+
+    sleep(3);
+    disconnect_from_server(fd);
+
     while(1);
     
     return 0;

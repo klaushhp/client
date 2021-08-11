@@ -1,38 +1,65 @@
 #include <sys/socket.h>
 #include "tcp_client.h"
+#include "message_handler.h"
 
 
 client_err_t start_tcp_main_loop(tcp_client* client)
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
         
-    if( pthread_create(&client->thread_id, NULL, tcp_client_main_loop, (void *)client) != 0 )
-    {
+    if( pthread_create(&client->client_thread_id, NULL, tcp_client_main_loop, (void *)client) == 0 ) {
+        printf("tcp_client_main_loop [%ld] created\n", (long unsigned int)client->client_thread_id);
+    } else {
+        printf("Fatal: tcp_client_main_loop thread create failed\n");
         ret = CLIENT_ERR_ERRNO;
-    } 
-    printf("thread [%ld] created\n", (long unsigned int)client->thread_id);
+    }
+
+    if( ret == CLIENT_ERR_SUCCESS ) {
+        if( pthread_create(&client->msg_thread_id, NULL, tcp_message_handle_loop, (void *)client) == 0 ) {
+            printf("tcp_message_handle_loop [%ld] created\n", (long unsigned int)client->msg_thread_id);
+        } else {
+            printf("Fatal: tcp_message_handle_loop thread create failed\n");
+            ret = CLIENT_ERR_ERRNO;
+
+            if( client->sockpair_w != INVALID_SOCKET ) {
+                send_internal_signal(client->sockpair_w, internal_cmd_break_block);
+            }
+            printf("cancel the thread [%ld]\n", (long unsigned int)client->client_thread_id);
+
+            pthread_cancel(client->client_thread_id);
+            pthread_join(client->client_thread_id, NULL);
+            client->client_thread_id = INVALID_THREAD;
+        }
+    }
 
     return ret;
 }
 
-client_err_t stop_tcp_main_loop(tcp_client* client)
+void stop_tcp_main_loop(tcp_client* client)
 {
-    client_err_t ret = CLIENT_ERR_SUCCESS;
-    void* rc;
-
     if( client != NULL )
     {
-        if( client->sockpair_w != INVALID_SOCKET ) {
-            send_internal_signal(client->sockpair_w, internal_cmd_break_block);
-        }
-        printf("cancel the thread [%ld]\n", (long unsigned int)client->thread_id);
+        if( client->client_thread_id != INVALID_THREAD ) {
+            if( client->sockpair_w != INVALID_SOCKET ) {
+                send_internal_signal(client->sockpair_w, internal_cmd_break_block);
+            }
 
-        pthread_cancel(client->thread_id);
-        pthread_join(client->thread_id, &rc);
-        client->thread_id = INVALID_THREAD;
+            printf("cancel the thread [%ld]\n", (long unsigned int)client->client_thread_id);
+            pthread_cancel(client->client_thread_id);
+            pthread_join(client->client_thread_id, NULL);
+            client->client_thread_id = INVALID_THREAD;
+        }    
+
+        if( client->msg_thread_id != INVALID_THREAD ) {
+            sem_post(&client->in_msg_sem);
+            printf("cancel the thread [%ld]\n", (long unsigned int)client->msg_thread_id);
+            pthread_cancel(client->msg_thread_id);
+            pthread_join(client->msg_thread_id, NULL);
+            client->msg_thread_id = INVALID_THREAD;
+        }
     }
 
-    return ret;
+    return ;
 }
 
 tcp_client* create_tcp_client()
@@ -46,13 +73,17 @@ tcp_client* create_tcp_client()
         client->host = NULL;
         client->port = 0;
         client->state = tcp_cs_new;
-        client->thread_id = INVALID_THREAD;
+        client->client_thread_id = INVALID_THREAD;
+        client->msg_thread_id = INVALID_THREAD;
         client->out_packet = NULL;
         client->out_packet_last = NULL;
-        packet_init(&client->in_packet);
+        client->in_msg = NULL;
 
+        packet_init(&client->in_packet);
         pthread_mutex_init(&client->state_mutex, NULL);
-        pthread_mutex_init(&client->packet_mutex, NULL);
+        pthread_mutex_init(&client->out_packet_mutex, NULL);
+        pthread_mutex_init(&client->in_msg_mutex, NULL);
+        sem_init(&client->in_msg_sem, 0, 0);
 
         if( local_socketpair(&client->sockpair_r, &client->sockpair_w) ) {
             printf("Error: fail to create internal pipe\n");
@@ -82,6 +113,8 @@ void destroy_tcp_client(tcp_client* client)
         }
 
         packet_cleanup_all(client);
+
+        message_cleanup_all(client);
 
         free(client->host);
 
