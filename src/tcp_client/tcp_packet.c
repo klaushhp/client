@@ -109,11 +109,6 @@ client_err_t packet_write(remote_client_t* client)
         return CLIENT_ERR_INVALID_PARAM;
     }
 
-    state = client_get_state(clt);
-    if( state == tcp_cs_connect_pending ) {
-        return CLIENT_ERR_SUCCESS;
-    }
-
     while(clt->out_packet) {
         packet = clt->out_packet;
 

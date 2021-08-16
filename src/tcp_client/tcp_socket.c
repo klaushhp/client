@@ -144,9 +144,7 @@ client_err_t connect_server(tcp_client* client)
     if(ret == CLIENT_ERR_SUCCESS) 
     {
         client_set_state(client, tcp_cs_connected);
-    } else {
-        client_set_state(client, tcp_cs_connect_pending);
-    }       
+    } 
 
     return ret;
 }

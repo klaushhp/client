@@ -196,7 +196,7 @@ client_err_t tcp_client_data_upload(remote_client_t* client, const void* payload
         clt = (tcp_client *)(client->clt);
         if( clt != NULL ) {
             state = client_get_state(clt); 
-            if( state == tcp_cs_connected || state == tcp_cs_connect_pending ) {
+            if( state == tcp_cs_connected ) {
                 packet = calloc(1, sizeof(tcp_packet_t));
                 if( !packet ) {
                     return CLIENT_ERR_NOMEN;
