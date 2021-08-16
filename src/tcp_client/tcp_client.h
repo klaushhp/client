@@ -5,7 +5,7 @@
 #include "tcp_socket.h"
 #include "message_handler.h"
 
-tcp_client* create_tcp_client();
+void* create_tcp_client();
 void destroy_tcp_client(remote_client_t* client);
 client_err_t connect_tcp_server(remote_client_t* client, const connect_opt* opt);
 client_err_t disconnect_tcp_server(remote_client_t* client);

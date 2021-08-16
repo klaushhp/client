@@ -108,6 +108,13 @@ typedef enum
 
 typedef uint32_t client_t;
 
+typedef struct 
+{
+    client_protocal_type type;
+    char *host;
+    uint16_t port;
+    bool tls_enable;
+} connect_opt;
 
 struct remote_client
 {
@@ -118,18 +125,19 @@ struct remote_client
     pthread_mutex_t in_msg_mutex;
     sem_t in_msg_sem;
     void *clt;
+
+    void* (* create_client)();
+    void (* destroy_client)(struct remote_client* client);
+    client_err_t (* connect_server)(struct remote_client* client, const connect_opt* opt);
+    client_err_t (* disconnect_server)(struct remote_client* client);
+    client_err_t (* start_main_loop)(struct remote_client* client);
+    void (* stop_main_loop)(struct remote_client* client);
+    client_err_t (* data_upload)(struct remote_client* client, const void* payload, int len);
+
     struct remote_client *prev;
     struct remote_client *next;
 };
 typedef struct remote_client remote_client_t;
-
-typedef struct 
-{
-    client_protocal_type type;
-    char *host;
-    uint16_t port;
-    bool tls_enable;
-} connect_opt;
 
 void send_internal_signal(int sock, client_internal_cmd cmd);
 int client_set_state(tcp_client* client, tcp_client_state state);

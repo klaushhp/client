@@ -51,7 +51,7 @@ void stop_tcp_main_loop(remote_client_t* client)
     return ;
 }
 
-tcp_client* create_tcp_client()
+void* create_tcp_client()
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
     tcp_client* client = NULL;
@@ -129,7 +129,6 @@ client_err_t connect_tcp_server(remote_client_t* client, const connect_opt* opt)
 
                 ret = connect_server(clt);
                 if(  ret == CLIENT_ERR_SUCCESS ) {
-                    /* TODO: publish connect success */
                     printf("publish event: connect success\n");
                 }
             } else {
