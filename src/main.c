@@ -13,10 +13,17 @@ int main(int argc, char const *argv[])
 
     signal(SIGPIPE,SIG_IGN);
 
+    char *p = "127.0.0.1";
+    connect_opt opt;
+
+    opt.type = PROTOCAL_TCP;
+    opt.host = p;
+    opt.port = 1234;
+    opt.tls_enable = false;
 
     printf("---------------start test----------------------\n");
 
-    fd = connect_to_server(PROTOCAL_TCP, "127.0.0.1", 1234);
+    fd = connect_to_server(&opt);
     if( fd == INVALID_HANDLE )
     {
         printf("create_client failed---------------\n");
@@ -34,6 +41,8 @@ int main(int argc, char const *argv[])
         sleep(1);
     }
 #endif
+
+    while(1);
 
     sleep(3);
     disconnect_from_server(fd);

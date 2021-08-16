@@ -11,8 +11,8 @@
 #include "tcp_socket.h"
 #include "tcp_packet.h"
 
-static client_err_t tcp_loop_read(tcp_client* client);
-static client_err_t tcp_loop_write(tcp_client* client);
+static client_err_t tcp_loop_read(remote_client_t* client);
+static client_err_t tcp_loop_write(remote_client_t* client);
 
 client_err_t set_socket_nonblock(int* sock)
 {
@@ -166,57 +166,62 @@ void net_socket_close(tcp_client* client)
     return ;
 }
 
-static int tcp_client_loop(tcp_client* client)
+static int tcp_client_loop(remote_client_t* client)
 {
     fd_set readfds, writefds;
     int fdcount;
     int maxfd = 0;
     uint8_t pairbuf;
     client_err_t ret = CLIENT_ERR_SUCCESS;
+    tcp_client *clt = NULL;
 
     if( !client ) {
+        return CLIENT_ERR_INVALID_PARAM;
+    }
+
+    clt = (tcp_client *)(client->clt);
+    if( !clt ) {
         return CLIENT_ERR_INVALID_PARAM;
     }
 
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
 
-    if( client->sockfd != INVALID_SOCKET ) {
-        maxfd = client->sockfd;
-        FD_SET(client->sockfd, &readfds);
+    if( clt->sockfd != INVALID_SOCKET ) {
+        maxfd = clt->sockfd;
+        FD_SET(clt->sockfd, &readfds);
 
-        if( client->out_packet )
+        if( clt->out_packet )
         {
-            FD_SET(client->sockfd, &writefds);
+            FD_SET(clt->sockfd, &writefds);
         }    
     } else {
         return CLIENT_ERR_NO_CONN;
     }
 
-    if( client->sockpair_r != INVALID_SOCKET ) {
-        FD_SET(client->sockpair_r, &readfds);
+    if( clt->sockpair_r != INVALID_SOCKET ) {
+        FD_SET(clt->sockpair_r, &readfds);
 
-        if( client->sockpair_r > maxfd ) {
-            maxfd = client->sockpair_r;
+        if( clt->sockpair_r > maxfd ) {
+            maxfd = clt->sockpair_r;
         }
     }
     
     fdcount = select(maxfd+1, &readfds, &writefds, NULL, NULL);
     if( fdcount != -1 )
     {
-        if( client->sockfd != INVALID_SOCKET ) { 
-            if( FD_ISSET(client->sockfd, &readfds) ) {
-                printf("sockfd can read-------\n");
+        if( clt->sockfd != INVALID_SOCKET ) { 
+            if( FD_ISSET(clt->sockfd, &readfds) ) {
                 ret = tcp_loop_read(client);
 
-                if(ret || client->sockfd == INVALID_SOCKET)
+                if(ret || clt->sockfd == INVALID_SOCKET)
                 {
                     return ret;
                 }
             }
 
-            if( client->sockpair_r != INVALID_SOCKET  && FD_ISSET(client->sockpair_r, &readfds) ) {
-                recv(client->sockpair_r, &pairbuf, 1, 0);
+            if( clt->sockpair_r != INVALID_SOCKET  && FD_ISSET(clt->sockpair_r, &readfds) ) {
+                recv(clt->sockpair_r, &pairbuf, 1, 0);
                 
                 switch ((client_internal_cmd)pairbuf) 
                 {
@@ -226,16 +231,16 @@ static int tcp_client_loop(tcp_client* client)
 
                 case internal_cmd_disconnect:
                     printf("internal_cmd_disconnect\n");
-                    net_socket_close(client);
-                    client_set_state(client, tcp_cs_disconnected);
-                    packet_cleanup_all(client);
+                    net_socket_close(clt);
+                    client_set_state(clt, tcp_cs_disconnected);
+                    packet_cleanup_all(clt);
                     /*TODO: publish tcp disconnect success*/
                 
                     return CLIENT_ERR_SUCCESS;
 
                 case internal_cmd_write_trigger:
-                    if( client->sockfd != INVALID_SOCKET ) {
-                        FD_SET(client->sockfd, &writefds);
+                    if( clt->sockfd != INVALID_SOCKET ) {
+                        FD_SET(clt->sockfd, &writefds);
                     }    
                     break;
 
@@ -244,10 +249,10 @@ static int tcp_client_loop(tcp_client* client)
                 }
             }
 
-            if( client->sockfd != INVALID_SOCKET && FD_ISSET(client->sockfd, &writefds) ) {           
+            if( clt->sockfd != INVALID_SOCKET && FD_ISSET(clt->sockfd, &writefds) ) {           
                 printf("sockfd can write------\n");
                 ret = tcp_loop_write(client);
-                if( ret || client->sockfd == INVALID_SOCKET )
+                if( ret || clt->sockfd == INVALID_SOCKET )
                 {
                     return ret;
                 }
@@ -268,7 +273,7 @@ void* tcp_client_main_loop(void* obj)
     int rc;
     int run = 1;
     int state;
-    tcp_client* client = (tcp_client*)obj;
+    remote_client_t *client = (remote_client_t *)obj;
 
     while( run ) {
         
@@ -294,7 +299,7 @@ void* tcp_client_main_loop(void* obj)
             printf("Unknow error need to handle!\n");
             break;
         }
-
+#if 0
         do {
             pthread_testcancel();
 
@@ -309,19 +314,20 @@ void* tcp_client_main_loop(void* obj)
             }
 
             /*TODO: use select to delay, can interuppt the delay*/
+          
         } while(run && rc != CLIENT_ERR_SUCCESS);
-
+#endif  
     }
 
     return (void*)0;
 }
 
-static client_err_t tcp_loop_read(tcp_client* client)
+static client_err_t tcp_loop_read(remote_client_t* client)
 {
     return packet_read(client);
 }
 
-static client_err_t tcp_loop_write(tcp_client* client)
+static client_err_t tcp_loop_write(remote_client_t* client)
 {
     return packet_write(client);
 }

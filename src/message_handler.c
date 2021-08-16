@@ -1,11 +1,13 @@
 #include "message_handler.h"
 
-static void hande_query_param(tcp_packet_msg_t* msg);
-static void hande_set_param(tcp_packet_msg_t* msg);
-static void hande_vehicle_control(tcp_packet_msg_t* msg);
-static void hande_request_can_msg(tcp_packet_msg_t* msg);
+static void hande_query_param(pending_msg_t* msg);
+static void hande_set_param(pending_msg_t* msg);
+static void hande_vehicle_control(pending_msg_t* msg);
+static void hande_request_can_msg(pending_msg_t* msg);
+static void *message_handle_loop(void *obj);
 
-static void message_cleanup(tcp_packet_msg_t* msg)
+
+static void message_cleanup(pending_msg_t* msg)
 {
     if( msg != NULL ) {
         msg->payload_len = 0;
@@ -14,14 +16,14 @@ static void message_cleanup(tcp_packet_msg_t* msg)
     }    
 }
 
-static void message_free(tcp_packet_msg_t *msg)
+static void message_free(pending_msg_t *msg)
 {
     free(msg);
 }
 
-void message_cleanup_all(tcp_client *client)
+void message_cleanup_all(remote_client_t *client)
 {
-    tcp_packet_msg_t *current, *tmp;
+    pending_msg_t *current, *tmp;
 
     if( client != NULL ) {
         pthread_mutex_lock(&client->in_msg_mutex);
@@ -37,13 +39,42 @@ void message_cleanup_all(tcp_client *client)
     }
 }
 
-void* tcp_message_handle_loop(void *obj)
+client_err_t start_message_handle_loop(remote_client_t* client)
 {
-    tcp_packet_msg_t *current = NULL;
-    tcp_packet_msg_t *tmp = NULL;
-    tcp_client* client = (tcp_client *)obj;
+    client_err_t ret = CLIENT_ERR_SUCCESS;
 
-    do {
+    if( pthread_create(&client->msg_thread_id, NULL, message_handle_loop, (void *)client) == 0 ) {
+        printf("tcp_message_handle_loop [%ld] created\n", (long unsigned int)client->msg_thread_id);
+    } else {
+        printf("Fatal: tcp_message_handle_loop thread create failed\n");
+        ret = CLIENT_ERR_ERRNO;
+    }
+
+    return ret;
+}
+
+void stop_message_handle_loop(remote_client_t *client)
+{
+    if( client != NULL )
+    {
+        sem_post(&client->in_msg_sem);
+        printf("cancel the thread [%ld]\n", (long unsigned int)client->msg_thread_id);
+        pthread_cancel(client->msg_thread_id);
+        pthread_join(client->msg_thread_id, NULL);
+        client->msg_thread_id = INVALID_THREAD;
+    }
+  
+    return ;
+}
+
+static void* message_handle_loop(void *obj)
+{
+    pending_msg_t *current = NULL;
+    pending_msg_t *tmp = NULL;
+    remote_client_t *client = (remote_client_t *)obj;
+
+    do {         
+
         sem_wait(&client->in_msg_sem);
 
         pthread_testcancel();
@@ -92,22 +123,22 @@ void* tcp_message_handle_loop(void *obj)
 
 }
 
-static void hande_query_param(tcp_packet_msg_t* msg)
+static void hande_query_param(pending_msg_t* msg)
 {
 
 }
 
-static void hande_set_param(tcp_packet_msg_t* msg)
+static void hande_set_param(pending_msg_t* msg)
 {
 
 }
 
-static void hande_vehicle_control(tcp_packet_msg_t* msg)
+static void hande_vehicle_control(pending_msg_t* msg)
 {
 
 }
 
-static void hande_request_can_msg(tcp_packet_msg_t* msg)
+static void hande_request_can_msg(pending_msg_t* msg)
 {
 
 

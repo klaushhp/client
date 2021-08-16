@@ -3,8 +3,9 @@
 
 #include "common.h"
 
-void* tcp_message_handle_loop(void *obj);
-void message_cleanup_all(tcp_client *client);
+void message_cleanup_all(remote_client_t *client);
+client_err_t start_message_handle_loop(remote_client_t *client);
+void stop_message_handle_loop(remote_client_t *client);
 
 typedef enum
 {

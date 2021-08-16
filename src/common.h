@@ -40,7 +40,7 @@ typedef enum
 #define MSG_CHECK_SUM_LEN   (1)
 #define MSG_BEFORE_DATA_LEN (2+1+1+3+3+2)
 
-struct tcp_packet_msg
+struct pending_msg
 {
     uint8_t cmd_id;
     uint8_t ack_flag;
@@ -49,10 +49,10 @@ struct tcp_packet_msg
     void* payload;
     int payload_len;
     uint8_t check_sum;
-    struct tcp_packet_msg* prev;
-    struct tcp_packet_msg* next;
+    struct pending_msg* prev;
+    struct pending_msg* next;
 };
-typedef struct tcp_packet_msg tcp_packet_msg_t;
+typedef struct pending_msg pending_msg_t;
 
 
 /*tcp packet has two directions      */
@@ -77,15 +77,11 @@ typedef struct
     uint16_t port;
     tcp_client_state state;
     pthread_t client_thread_id;
-    pthread_t msg_thread_id;
     tcp_packet_t* out_packet;
     tcp_packet_t* out_packet_last;
     tcp_packet_t in_packet;
-    tcp_packet_msg_t* in_msg;
     pthread_mutex_t state_mutex;    
     pthread_mutex_t out_packet_mutex;
-    pthread_mutex_t in_msg_mutex;
-    sem_t in_msg_sem;
 } tcp_client;
 
 typedef enum
@@ -107,24 +103,33 @@ typedef enum
     CLIENT_ERR_INVALID_PROTOCAL =7,
 } client_err_t;
 
-void send_internal_signal(int sock, client_internal_cmd cmd);
-int client_set_state(tcp_client* client, tcp_client_state state);
-tcp_client_state client_get_state(tcp_client* client);
-
 typedef int client_t;
+
 
 struct remote_client
 {
-    client_t handle;
     client_protocal_type type; 
-    //bool login_status;
-    //pthread_mutex_t login_mutex;
-    void* clt;
-    struct remote_client* prev;
-    struct remote_client* next;
+    client_t handle;
+    pthread_t msg_thread_id;
+    pending_msg_t *in_msg;
+    pthread_mutex_t in_msg_mutex;
+    sem_t in_msg_sem;
+    void *clt;
+    struct remote_client *prev;
+    struct remote_client *next;
 };
 typedef struct remote_client remote_client_t;
 
+typedef struct 
+{
+    client_protocal_type type;
+    char *host;
+    uint16_t port;
+    bool tls_enable;
+} connect_opt;
 
+void send_internal_signal(int sock, client_internal_cmd cmd);
+int client_set_state(tcp_client* client, tcp_client_state state);
+tcp_client_state client_get_state(tcp_client* client);
 
 #endif 
