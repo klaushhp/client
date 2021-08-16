@@ -60,7 +60,8 @@ typedef struct pending_msg pending_msg_t;
 /*For the packet received, the payload is the real payload part,  payload_len is only the payload part len  */
 struct tcp_packet
 {
-    void* payload;
+    int sockpair_r, sockpair_w;
+    uint8_t* payload;
     int payload_len;
     struct tcp_packet* next;
     int pos;
@@ -79,9 +80,11 @@ typedef struct
     pthread_t client_thread_id;
     tcp_packet_t* out_packet;
     tcp_packet_t* out_packet_last;
+    tcp_packet_t* current_out_packet;
     tcp_packet_t in_packet;
     pthread_mutex_t state_mutex;    
     pthread_mutex_t out_packet_mutex;
+    pthread_mutex_t current_out_packet_mutex;
 } tcp_client;
 
 typedef enum
@@ -103,7 +106,7 @@ typedef enum
     CLIENT_ERR_INVALID_PROTOCAL =7,
 } client_err_t;
 
-typedef int client_t;
+typedef uint32_t client_t;
 
 
 struct remote_client

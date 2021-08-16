@@ -12,7 +12,9 @@ void packet_init(tcp_packet_t* packet)
         packet->payload_len = 0;;
         packet->next = NULL;
         packet->pos = 0;
-        packet->to_process = 0;  
+        packet->to_process = 0; 
+        packet->sockpair_r = INVALID_SOCKET;
+        packet->sockpair_w = INVALID_SOCKET; 
 
         memset(packet->head_buf, 0, sizeof(packet->head_buf));
     }
@@ -76,6 +78,9 @@ client_err_t packet_queue(remote_client_t* client, tcp_packet_t* packet)
         CLIENT_ERR_INVALID_PARAM;
     }
 
+    packet->pos = 0;
+    packet->to_process = packet->payload_len;
+
     packet->next = NULL;
     pthread_mutex_lock(&clt->out_packet_mutex);
     if(clt->out_packet) {
@@ -99,6 +104,7 @@ client_err_t packet_write(remote_client_t* client)
     ssize_t write_len;
     tcp_client_state state;
     tcp_client *clt = NULL;
+    client_err_t ret = CLIENT_ERR_SUCCESS;
 
     if( client == NULL ) {
         return CLIENT_ERR_INVALID_PARAM;
@@ -109,38 +115,60 @@ client_err_t packet_write(remote_client_t* client)
         return CLIENT_ERR_INVALID_PARAM;
     }
 
-    while(clt->out_packet) {
-        packet = clt->out_packet;
+    pthread_mutex_lock(&clt->current_out_packet_mutex);
+    pthread_mutex_lock(&clt->out_packet_mutex);
 
-        write_len = net_write(clt, packet->payload, packet->payload_len);
-        if(write_len > 0) {
-            printf("successfully send [%ld] bytes: %s\n", write_len, (char*)packet->payload);
-        } else {
-            printf("ret:[%ld] fail to send\n", write_len);
-            if(errno == EAGAIN || errno == EWOULDBLOCK ) {
-				return CLIENT_ERR_SUCCESS;
-			} else {
-				switch(errno) {
-				case ECONNRESET:
-                    return CLIENT_ERR_CONN_LOST;
-            
-                default:
-                    return CLIENT_ERR_ERRNO;
-				}
-			}
+    if(clt->out_packet && !clt->current_out_packet) {
+		clt->current_out_packet = clt->out_packet;
+		clt->out_packet = clt->out_packet->next;
+		if(!clt->out_packet) {
+			clt->out_packet_last = NULL;
+		}
+	}
+	pthread_mutex_unlock(&clt->out_packet_mutex);
+
+    while(clt->current_out_packet) {
+        packet = clt->current_out_packet;
+
+        while(packet->to_process > 0) {
+            write_len = net_write(clt, &(packet->payload[packet->pos]), packet->to_process);
+            if(write_len > 0) {
+               packet->to_process -= write_len;
+               packet->pos += write_len;
+            } else {
+                printf("ret:[%ld] fail to send\n", write_len);
+                if( errno == EAGAIN || errno == EWOULDBLOCK ) {
+                    pthread_mutex_unlock(&clt->current_out_packet_mutex);
+                    return CLIENT_ERR_SUCCESS;
+                } else {
+                    pthread_mutex_unlock(&clt->current_out_packet_mutex);
+                    switch(errno) {
+                    case ECONNRESET:
+                        return CLIENT_ERR_CONN_LOST;
+                
+                    default:
+                        return CLIENT_ERR_ERRNO;
+                    }
+                }
+            }
         }
 
+        send(packet->sockpair_w, &ret, 1, 0);
+
         pthread_mutex_lock(&clt->out_packet_mutex);
-        clt->out_packet = clt->out_packet->next;
-        if(!clt->out_packet) {
-            clt->out_packet_last = NULL;
+        clt->current_out_packet = clt->out_packet;
+        if(clt->out_packet) {
+            clt->out_packet = clt->out_packet->next;
+            if(!clt->out_packet) {
+                clt->out_packet_last = NULL;
+            }    
         }
         pthread_mutex_unlock(&clt->out_packet_mutex);
 
         packet_cleanup(packet);
         packet_free(packet);
     }
-
+    pthread_mutex_unlock(&clt->current_out_packet_mutex);
     return CLIENT_ERR_SUCCESS;
 }
 

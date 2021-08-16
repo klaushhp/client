@@ -30,7 +30,7 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
-    printf("finish connect_to_server---------------ret\n");
+    printf("finish connect_to_server, handle[%d]\n", fd);
 #if 0
     while(i < 10)
     {
@@ -41,6 +41,13 @@ int main(int argc, char const *argv[])
         sleep(1);
     }
 #endif
+
+while (1)
+{
+    client_data_upload(fd, "lalalalalalalalalalalala", 20);
+    usleep(100000);
+}
+
 
     while(1);
 

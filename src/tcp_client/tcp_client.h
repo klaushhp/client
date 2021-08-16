@@ -12,8 +12,5 @@ client_err_t disconnect_tcp_server(remote_client_t* client);
 client_err_t start_tcp_main_loop(remote_client_t* client);
 void stop_tcp_main_loop(remote_client_t* client);
 client_err_t tcp_client_data_upload(remote_client_t* client, const void* payload, int len);
-//client_err_t get_tcp_login_status(tcp_client* client, bool* login_status);
-//client_err_t register_to_tcp_server(tcp_client* client);
-//client_err_t unregister_from_tcp_server(tcp_client* client);
 
 #endif

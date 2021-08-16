@@ -34,7 +34,7 @@ client_err_t set_socket_nonblock(int* sock)
     return CLIENT_ERR_SUCCESS;
 }
 
-client_err_t local_socketpair(int* pair_r, int* pair_w)
+client_err_t local_socketpair(int* pair_r, int* pair_w, bool block)
 {
     int sv[2];
 
@@ -44,16 +44,19 @@ client_err_t local_socketpair(int* pair_r, int* pair_w)
 	if(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1){
 		return CLIENT_ERR_ERRNO;
 	}
-	if(set_socket_nonblock(&sv[0])){
-		close(sv[1]);
-        sv[1] = INVALID_SOCKET;
-		return CLIENT_ERR_ERRNO;
-	}
-	if(set_socket_nonblock(&sv[1])){
-		close(sv[0]);
-        sv[0] = INVALID_SOCKET;
-		return CLIENT_ERR_ERRNO;
-	}
+
+    if( !block ) {
+        if(set_socket_nonblock(&sv[0])){
+            close(sv[1]);
+            sv[1] = INVALID_SOCKET;
+            return CLIENT_ERR_ERRNO;
+        }
+        if(set_socket_nonblock(&sv[1])){
+            close(sv[0]);
+            sv[0] = INVALID_SOCKET;
+            return CLIENT_ERR_ERRNO;
+        }
+    }
 	*pair_r = sv[0];
 	*pair_w = sv[1];
 
