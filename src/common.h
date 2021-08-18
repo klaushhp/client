@@ -11,11 +11,11 @@
 #include <semaphore.h>
 #include <errno.h>
 #include <utlist.h>
+#include <uthash.h>
+#include <mosquitto.h>
 
-#define INVALID_SOCKET -1
-#define INVALID_HANDLE -1
-#define INVALID_THREAD -1
 
+/*************************************FOR TCP PROTOCAL****************************************/
 typedef enum
 {
     PROTOCAL_TCP = 0,
@@ -30,43 +30,18 @@ typedef enum
     tcp_cs_connect_pending = 3,
 } tcp_client_state;
 
-#define MSG_START_ID        (0x23)
-#define MSG_START_ID_LEN    (2)
-#define MSG_CMD_ID_LEN      (1)
-#define MSG_ACK_FLAG_LEN    (1)
-#define MSG_DATE_LEN        (3)
-#define MSG_TIME_LEN        (3)
-#define MSG_DATA_LEN        (2)
-#define MSG_CHECK_SUM_LEN   (1)
-#define MSG_BEFORE_DATA_LEN (2+1+1+3+3+2)
-
-struct pending_msg
-{
-    uint8_t cmd_id;
-    uint8_t ack_flag;
-    uint8_t date[MSG_DATE_LEN];
-    uint8_t time[MSG_TIME_LEN];
-    void* payload;
-    int payload_len;
-    uint8_t check_sum;
-    struct pending_msg* prev;
-    struct pending_msg* next;
-};
-typedef struct pending_msg pending_msg_t;
-
-
 /*tcp packet has two directions      */
 /*For the packet to send out, the payload means the whole message, payload_len is the whole message len */
 /*For the packet received, the payload is the real payload part,  payload_len is only the payload part len  */
 struct tcp_packet
 {
-    int sockpair_r, sockpair_w;
     uint8_t* payload;
     int payload_len;
     struct tcp_packet* next;
     int pos;
     int to_process;
-    uint8_t head_buf[MSG_BEFORE_DATA_LEN]; 
+    uint8_t head_buf[12];
+    int sockpair_r, sockpair_w; 
 } ;
 typedef struct tcp_packet tcp_packet_t;
 
@@ -94,6 +69,65 @@ typedef enum
     internal_cmd_write_trigger = 2,
 } client_internal_cmd;
 
+/**************************************FOR MQTT PROTOCAL****************************************/
+#if 0
+typedef struct 
+{
+    int mid;
+    int fd;
+    UT_hash_handle hh;
+} out_msg_hash_table;
+#endif
+typedef struct 
+{
+    struct mosquitto *mosq;
+    //out_msg_hash_table *out_msg_table; 
+    //pthread_mutex_t out_msg_mutex;
+    pthread_t client_thread_id;
+} mqtt_client;
+
+
+typedef struct 
+{
+    int *mid;
+    char *topic;
+    void *payload;
+    int payload_len;
+    int qos;
+    bool retain;
+} mqtt_msg;
+
+
+
+/********************************************Common*********************************************/
+#define INVALID_SOCKET -1
+#define INVALID_HANDLE -1
+#define INVALID_THREAD -1
+
+#define MSG_START_ID        (0x23)
+#define MSG_START_ID_LEN    (2)
+#define MSG_CMD_ID_LEN      (1)
+#define MSG_ACK_FLAG_LEN    (1)
+#define MSG_DATE_LEN        (3)
+#define MSG_TIME_LEN        (3)
+#define MSG_DATA_LEN        (2)
+#define MSG_CHECK_SUM_LEN   (1)
+#define MSG_BEFORE_DATA_LEN (2+1+1+3+3+2)
+
+struct pending_msg
+{
+    uint8_t cmd_id;
+    uint8_t ack_flag;
+    uint8_t date[MSG_DATE_LEN];
+    uint8_t time[MSG_TIME_LEN];
+    void* payload;
+    int payload_len;
+    uint8_t check_sum;
+    struct pending_msg* prev;
+    struct pending_msg* next;
+};
+typedef struct pending_msg pending_msg_t;
+
 typedef enum 
 {
     CLIENT_ERR_SUCCESS = 0,
@@ -113,7 +147,6 @@ typedef struct
     client_protocal_type type;
     char *host;
     uint16_t port;
-    bool tls_enable;
 } connect_opt;
 
 struct remote_client
@@ -139,8 +172,9 @@ struct remote_client
 };
 typedef struct remote_client remote_client_t;
 
-void send_internal_signal(int sock, client_internal_cmd cmd);
-int client_set_state(tcp_client* client, tcp_client_state state);
-tcp_client_state client_get_state(tcp_client* client);
+client_err_t set_socket_nonblock(int *sock);
+client_err_t local_socketpair(int *pair_r, int *pair_w, bool block);
+
+
 
 #endif 

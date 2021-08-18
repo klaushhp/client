@@ -10,16 +10,21 @@ int main(int argc, char const *argv[])
     char buf[128] = {0};
     int i =0;
     int j=20;
-
-    signal(SIGPIPE,SIG_IGN);
-
-    char *p = "127.0.0.1";
+    mqtt_msg msg = {0};
     connect_opt opt;
 
-    opt.type = PROTOCAL_TCP;
-    opt.host = p;
-    opt.port = 1234;
-    opt.tls_enable = false;
+    signal(SIGPIPE,SIG_IGN);
+    
+    opt.type = PROTOCAL_MQTT;
+    opt.host = "127.0.0.1";
+    opt.port = 1883;
+
+    msg.mid = &j;
+    msg.topic = "bbox/test";
+    msg.payload = "Just a test";
+    msg.payload_len = 11;
+    msg.qos = 0;
+    msg.retain = true;
 
     printf("---------------start test----------------------\n");
 
@@ -44,8 +49,8 @@ int main(int argc, char const *argv[])
 
 while (1)
 {
-    client_data_upload(fd, "lalalalalalalalalalalala", 20);
-    usleep(100000);
+    client_data_upload(fd, &msg, 20);
+    sleep(100);
 }
 
 

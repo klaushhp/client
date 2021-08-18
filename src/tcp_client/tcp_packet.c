@@ -68,6 +68,7 @@ client_err_t packet_alloc(tcp_packet_t* packet)
 client_err_t packet_queue(remote_client_t* client, tcp_packet_t* packet)
 {
     tcp_client *clt = NULL;
+    client_internal_cmd cmd = internal_cmd_write_trigger;
 
     if( client == NULL || packet == NULL ) {
         return CLIENT_ERR_INVALID_PARAM;
@@ -92,7 +93,7 @@ client_err_t packet_queue(remote_client_t* client, tcp_packet_t* packet)
     pthread_mutex_unlock(&clt->out_packet_mutex);
 
     if(clt->sockpair_w != INVALID_SOCKET) {
-        send_internal_signal(clt->sockpair_w, internal_cmd_write_trigger);
+        send(clt->sockpair_w, &cmd, 1, 0);
     }
  
     return CLIENT_ERR_SUCCESS;
@@ -102,7 +103,6 @@ client_err_t packet_write(remote_client_t* client)
 {
     tcp_packet_t* packet = NULL;
     ssize_t write_len;
-    tcp_client_state state;
     tcp_client *clt = NULL;
     client_err_t ret = CLIENT_ERR_SUCCESS;
 

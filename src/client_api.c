@@ -1,5 +1,6 @@
 #include "client_api.h"
 #include "tcp_client.h"
+#include "mqtt_client.h"
 
 static remote_client_t* client_list = NULL;
 static uint32_t fd;
@@ -28,12 +29,18 @@ static void set_client_callback(remote_client_t *client)
         client->disconnect_server = &disconnect_tcp_server;
         client->start_main_loop = &start_tcp_main_loop;    
         client->stop_main_loop = &stop_tcp_main_loop;
-        client->data_upload = &tcp_client_data_upload;
+        client->data_upload = &tcp_data_upload;
 
         break;
 
     case PROTOCAL_MQTT:
-        printf("Error: MQTT protocal is not supproted\n");
+        client->create_client = &create_mqtt_client;
+        client->destroy_client = &destroy_mqtt_client;  
+        client->connect_server = &connect_mqtt_server;
+        client->disconnect_server = &disconnect_mqtt_server;
+        client->start_main_loop = &start_mqtt_main_loop;    
+        client->stop_main_loop = &stop_mqtt_main_loop;
+        client->data_upload = &mqtt_data_upload;
         break;
 
     default:
@@ -71,7 +78,7 @@ static remote_client_t* create_remote_client(client_protocal_type type)
             sem_init(&client->in_msg_sem, 0, 0);
             set_client_callback(client);
 
-            client->clt = client->create_client();
+            client->clt = client->create_client(client);
             if( client->clt == NULL ) {
                 handle_free(client->handle);
                 free(client);
@@ -166,6 +173,5 @@ client_err_t client_data_upload(client_t handle, const void* payload, int len)
     }
 
     return ret; 
-
 }
 

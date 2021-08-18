@@ -14,6 +14,31 @@
 static client_err_t tcp_loop_read(remote_client_t* client);
 static client_err_t tcp_loop_write(remote_client_t* client);
 
+
+int client_set_state(tcp_client* client, tcp_client_state state)
+{
+	pthread_mutex_lock(&client->state_mutex);
+
+	client->state = state;
+	
+	pthread_mutex_unlock(&client->state_mutex);
+
+	return CLIENT_ERR_SUCCESS;
+}
+
+tcp_client_state client_get_state(tcp_client* client)
+{
+	tcp_client_state state;
+
+	pthread_mutex_lock(&client->state_mutex);
+
+	state = client->state;
+
+	pthread_mutex_unlock(&client->state_mutex);
+
+	return state;
+}
+
 client_err_t set_socket_nonblock(int* sock)
 {
     int opt;

@@ -31,13 +31,14 @@ client_err_t start_tcp_main_loop(remote_client_t* client)
 void stop_tcp_main_loop(remote_client_t* client)
 {
     tcp_client *clt = NULL;
+    client_internal_cmd cmd = internal_cmd_break_block;
 
     if( client != NULL ) {
         clt = (tcp_client *)(client->clt);
         if( clt != NULL ) {
             if( clt != NULL && clt->client_thread_id != INVALID_THREAD ) {
                 if( clt->sockpair_w != INVALID_SOCKET ) {
-                    send_internal_signal(clt->sockpair_w, internal_cmd_break_block);
+                    send(clt->sockpair_w, &cmd, 1, 0);
                 }
 
                 printf("cancel the thread [%ld]\n", (long unsigned int)(clt->client_thread_id));
@@ -51,27 +52,28 @@ void stop_tcp_main_loop(remote_client_t* client)
     return ;
 }
 
-void* create_tcp_client()
+void* create_tcp_client(remote_client_t* client)
 {
+    (void)client;
     client_err_t ret = CLIENT_ERR_SUCCESS;
-    tcp_client* client = NULL;
+    tcp_client* clt = NULL;
 
-    client = (tcp_client *)calloc(1, sizeof(tcp_client));
-    if( client != NULL ) {
-        client->sockfd = INVALID_SOCKET;
-        client->host = NULL;
-        client->port = 0;
-        client->state = tcp_cs_new;
-        client->client_thread_id = INVALID_THREAD;
-        client->out_packet = NULL;
-        client->out_packet_last = NULL;
-        client->current_out_packet = NULL;
-        packet_init(&client->in_packet);
-        pthread_mutex_init(&client->state_mutex, NULL);
-        pthread_mutex_init(&client->out_packet_mutex, NULL);
-        pthread_mutex_init(&client->current_out_packet_mutex, NULL);
+    clt = (tcp_client *)malloc(sizeof(tcp_client));
+    if( clt != NULL ) {
+        clt->sockfd = INVALID_SOCKET;
+        clt->host = NULL;
+        clt->port = 0;
+        clt->state = tcp_cs_new;
+        clt->client_thread_id = INVALID_THREAD;
+        clt->out_packet = NULL;
+        clt->out_packet_last = NULL;
+        clt->current_out_packet = NULL;
+        packet_init(&clt->in_packet);
+        pthread_mutex_init(&clt->state_mutex, NULL);
+        pthread_mutex_init(&clt->out_packet_mutex, NULL);
+        pthread_mutex_init(&clt->current_out_packet_mutex, NULL);
 
-        if( local_socketpair(&client->sockpair_r, &client->sockpair_w, false) ) {
+        if( local_socketpair(&clt->sockpair_r, &clt->sockpair_w, false) ) {
             printf("Error: fail to create internal pipe\n");
             free(client);
             client = NULL;
@@ -80,7 +82,7 @@ void* create_tcp_client()
         printf("Error: fail to alloc tcp_client instance\n");
     }   
 
-    return client;
+    return clt;
 }
 
 void destroy_tcp_client(remote_client_t* client)
@@ -151,12 +153,13 @@ client_err_t disconnect_tcp_server(remote_client_t* client)
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
     tcp_client *clt = NULL;
+    client_internal_cmd cmd = internal_cmd_disconnect;
 
     if( client != NULL ) {
         clt = (tcp_client *)(client->clt);
         if( clt != NULL ) {
             if( clt->sockpair_w != INVALID_SOCKET ) {
-                send_internal_signal(clt->sockpair_w, internal_cmd_disconnect);
+                send(clt->sockpair_w, &cmd, 1, 0);
             }
         } else {
             ret = CLIENT_ERR_INVALID_PARAM;
@@ -196,7 +199,7 @@ static client_err_t wait_upload_result(tcp_packet_t* packet)
     return ret;
 }
 
-client_err_t tcp_client_data_upload(remote_client_t* client, const void* payload, int len)
+client_err_t tcp_data_upload(remote_client_t* client, const void* payload, int len)
 {
     client_err_t ret = CLIENT_ERR_SUCCESS;
     tcp_packet_t* packet = NULL;
@@ -248,20 +251,3 @@ client_err_t tcp_client_data_upload(remote_client_t* client, const void* payload
 
     return wait_upload_result(packet);
 }
-
-#if 0
-client_err_t get_tcp_login_status(tcp_client* client, bool* login_status)
-{
-
-}
-
-client_err_t register_to_tcp_server(tcp_client* client)
-{
-
-}
-
-client_err_t unregister_from_tcp_server(tcp_client* client)
-{
-
-}
-#endif
